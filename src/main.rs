@@ -44,8 +44,6 @@ struct Args {
 #[derive(Debug)]
 struct Interface {
     name: String,
-    addr: Ipv4Addr,
-    mask: Ipv4Addr,
     network: Ipv4Net,
     sockfd: OwnedFd,
 }
@@ -58,53 +56,74 @@ fn ifreq_for(name: &str) -> ifreq {
     req
 }
 
-fn sockaddr_to_ipv4addr(addr: sockaddr) -> Ipv4Addr {
-
-    std::net::IpAddr::new()
-    return Ipv4Addr::new(
-        addr.sa_data[2],
-        addr.sa_data[3],
-        addr.sa_data[4],
-        addr.sa_data[5],
-    );
+fn sockaddr_to_ipv4addr(addr: sockaddr) -> Result<Ipv4Addr> {
+    Ok(Ipv4Addr::new(
+        addr.sa_data[2].try_into()?,
+        addr.sa_data[3].try_into()?,
+        addr.sa_data[4].try_into()?,
+        addr.sa_data[5].try_into()?,
+    ))
 }
 
 impl Interface {
     fn new(interface: &String) -> Result<Self> {
-        let sockfd = socket(
+        let sock_fd = socket(
             AddressFamily::Inet,
             SockType::Datagram,
             SockFlag::empty(),
             SockProtocol::Udp,
         )?;
 
-        setsockopt(&sockfd, BindToDevice, &OsString::from(&interface))?;
+        setsockopt(&sock_fd, BindToDevice, &OsString::from(&interface))?;
 
         let mut req = ifreq_for(interface);
         let addr: Ipv4Addr;
         unsafe {
-            siocgifaddr(sockfd.as_raw_fd(), &mut req)?;
-            addr = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr);
+            siocgifaddr(sock_fd.as_raw_fd(), &mut req)?;
+            addr = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
         };
 
         let mask: Ipv4Addr;
         unsafe {
-            siocgifnetmask(sockfd.as_raw_fd(), &mut req)?;
-            mask = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr);
+            siocgifnetmask(sock_fd.as_raw_fd(), &mut req)?;
+            mask = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
         };
+
+        let network = Ipv4Net::with_netmask(addr, mask)?;
 
         Ok(Interface {
             name: interface.clone(),
-            addr,
-            mask,
-            network: Ipv4Net::with_netmask(addr, mask)?,
-            sockfd,
+            network,
+            sockfd: sock_fd,
         })
     }
+}
 
-    // fn has(&self, addr: std::net::IpAddr) -> bool {
-    //     return self.address == addr;
-    // }
+fn create_receiving_socket(interfaces: Vec<Interface>) -> Result<OwnedFd> {
+    // create a UDP socket
+    let recv_fd = socket(
+        AddressFamily::Inet,
+        SockType::Datagram,
+        SockFlag::empty(),
+        SockProtocol::Udp,
+    )?;
+
+    // bind the 0.0.0.0:5353
+    let addr = SockaddrIn::new(0, 0, 0, 0, MDNS_PORT);
+    bind(recv_fd.as_raw_fd(), &addr)?;
+
+    // enable loopback, just in case someone else needs to the data
+    setsockopt(&recv_fd, IpMulticastLoop, &true)?;
+
+    for interface in interfaces {
+        setsockopt(
+            &recv_fd,
+            IpAddMembership,
+            &IpMembershipRequest::new(MDNS_ADDR, Some(interface.network.addr())),
+        )?;
+    }
+
+    Ok(recv_fd)
 }
 
 fn main() -> Result<()> {
@@ -132,26 +151,4 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn create_receiving_socket(interfaces: Vec<Interface>) -> Result<OwnedFd> {
-    // create a UDP socket
-    let recv_fd = socket(
-        AddressFamily::Inet,
-        SockType::Datagram,
-        SockFlag::empty(),
-        SockProtocol::Udp,
-    )?;
 
-    // bind the 0.0.0.0:5353
-    let addr = SockaddrIn::new(0, 0, 0, 0, MDNS_PORT);
-    bind(recv_fd.as_raw_fd(), &addr)?;
-
-    // enable loopback, just in case someone else needs to the data
-    setsockopt(&recv_fd, IpMulticastLoop, &true)?;
-
-    for interface in interfaces {
-        let membership_request = IpMembershipRequest::new(MDNS_ADDR, Some(interface.addr));
-        setsockopt(&recv_fd, IpAddMembership, &membership_request)?;
-    }
-
-    Ok(recv_fd)
-}
