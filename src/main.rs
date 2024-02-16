@@ -5,13 +5,13 @@ use log::{debug, error, info};
 use nix::libc::{c_char, ifreq, SIOCGIFADDR, SIOCGIFNETMASK};
 use nix::sys::epoll::*;
 use nix::sys::socket::sockopt::{
-    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, ReuseAddr,
+    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, ReuseAddr,
 };
 use nix::sys::socket::*;
 use std::error::Error;
 use std::ffi::OsString;
 use std::mem;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::os::fd::RawFd;
 use std::os::fd::{AsRawFd, OwnedFd};
 
@@ -69,7 +69,7 @@ impl Interface {
 
         setsockopt(&sock_fd, BindToDevice, &OsString::from(&interface_name))?;
 
-        let mut req = ifreq_for(interface_name);
+        let mut req = ifreq_for(&interface_name);
         let addr: Ipv4Addr;
         unsafe {
             // get the ipv4 address
@@ -84,12 +84,22 @@ impl Interface {
             mask = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
         };
 
+        setsockopt(&sock_fd, ReuseAddr, &true)?;
+
+        let sock_addr = &SockaddrIn::from(SocketAddrV4::new(addr, MDNS_PORT));
+        bind(sock_fd.as_raw_fd(), sock_addr)?;
+
         // add interface to the multicast-group
         setsockopt(
             &sock_fd,
             IpAddMembership,
             &IpMembershipRequest::new(MDNS_ADDR, Some(addr)),
         )?;
+
+        setsockopt(&sock_fd, IpMulticastLoop, &true)?;
+
+        let ttl = 255;
+        setsockopt(&sock_fd, Ipv4Ttl, &ttl)?;
 
         Ok(Interface {
             name: interface_name.clone(),
@@ -122,6 +132,7 @@ fn create_receiving_socket() -> Result<OwnedFd> {
     // enable loopback, just in case someone else needs to the data
     setsockopt(&recv_fd, IpMulticastLoop, &true)?;
 
+    // enable ipv4 packet info
     setsockopt(&recv_fd, Ipv4PacketInfo, &true)?;
 
     Ok(recv_fd)
@@ -137,13 +148,22 @@ fn main() -> Result<()> {
         panic!("At least 2 interfaces are required");
     }
 
-    info!("Setting up the interfaces");
+    debug!("Creating receiving socket");
+    let recv_fd = match create_receiving_socket() {
+        Ok(recv_fd) => recv_fd,
+        Err(err) => {
+            error!("Unable to create receiving socket - {:?}", err);
+            return Err(err);
+        }
+    };
+
+    debug!("Setting up the interfaces");
     let interfaces = args
         .interfaces
         .iter()
         .map(|interface_name| match Interface::new(interface_name) {
             Ok(interface) => {
-                info!(
+                debug!(
                     "interface {:?}: network {:?}",
                     interface_name, interface.network
                 );
@@ -156,15 +176,6 @@ fn main() -> Result<()> {
             ),
         })
         .collect::<Vec<Interface>>();
-
-    info!("Creating receiving socket");
-    let recv_fd = match create_receiving_socket() {
-        Ok(recv_fd) => recv_fd,
-        Err(err) => {
-            error!("Unable to create receiving socket - {:?}", err);
-            return Err(err);
-        }
-    };
 
     info!("Setting up epoll");
     let epoll = Epoll::new(EpollCreateFlags::empty())?;
