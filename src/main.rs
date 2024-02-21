@@ -29,9 +29,6 @@ struct Args {
     /// Interfaces
     #[arg(short, long)]
     interfaces: Vec<String>,
-
-    #[arg(short, long)]
-    verbose: bool,
 }
 
 #[derive(Debug)]
