@@ -135,11 +135,15 @@ fn main() -> Result<()> {
         panic!("At least 2 interfaces are required");
     }
 
-    let _aditional_subnets = args
+    let aditional_subnets = args
         .additional_subnets
         .iter()
         .map(|s| s.parse().unwrap())
         .collect::<Vec<Ipv4Net>>();
+
+    aditional_subnets
+        .iter()
+        .for_each(|a| info!("allowed_subenet = {:?}", a));
 
     debug!("Setting up the interfaces");
     let interfaces = args
@@ -147,7 +151,7 @@ fn main() -> Result<()> {
         .iter()
         .map(|interface_name| match Interface::new(interface_name) {
             Ok(interface) => {
-                debug!(
+                info!(
                     "interface {:?}: network {:?}",
                     interface_name, interface.network
                 );
@@ -177,7 +181,7 @@ fn main() -> Result<()> {
     loop {
         let num = epoll.wait(&mut epoll_events, 1000).unwrap();
         trace!("Received {} events", num);
-        for i in 0..num {
+        'events: for i in 0..num {
             let mut buf: [u8; 4096] = [0; 4096];
             let sockfd = epoll_events[i].data() as RawFd;
             let (len, addr) = recvfrom::<SockaddrIn>(sockfd, &mut buf).unwrap();
@@ -192,14 +196,14 @@ fn main() -> Result<()> {
                     "Ignoring a MDNS packet from an unknown interface from {:?}",
                     addr
                 );
-                continue;
+                continue 'events;
             }
             let src_interface = src_interface.unwrap();
 
             // ignore loopbacks
             if src_interface.network.addr() == addr {
                 debug!("Ignoring loopback a MDNS packet from {:?}", addr);
-                continue;
+                continue 'events;
             }
 
             debug!(
@@ -208,12 +212,21 @@ fn main() -> Result<()> {
             );
 
             if !src_interface.network_contains_addr(addr) {
-                trace!(
-                    "Received a MDNS packet from {:?} that originates from outside the source network {:?}",
+                let allowed_subnet = aditional_subnets.iter().find(|i| i.contains(&addr));
+                if allowed_subnet.is_none() {
+                    trace!(
+                        "Ignoring MDNS packet from {:?} that originates from outside the source network {:?}",
+                        addr,
+                        src_interface.network
+                    );
+                    continue 'events;
+                }
+                debug!(
+                    "Allowing MDNS packet from {:?} that originates from outside the source network {:?} (allowed subnet {:?}",
                     addr,
-                    src_interface.network
+                    src_interface.name,
+                    allowed_subnet.unwrap()
                 );
-                continue;
             }
 
             interfaces
