@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.1.0...v0.2.0) (2024-02-23)
+
+
+### Features
+
+* listen on each interface to allow user supplied additional subnets ([#2](https://github.com/Easen/rust-mdns-repeater/issues/2)) ([014df11](https://github.com/Easen/rust-mdns-repeater/commit/014df1124f2a2ddbde8236a2f11da68b7d642095))
+
 ## 0.1.0 (2024-02-21)
 
 
