@@ -2,27 +2,17 @@ use clap::Parser;
 use env_logger::Env;
 use ipnet::Ipv4Net;
 use log::{debug, error, info, trace};
-use nix::libc::{c_char, ifreq, SIOCGIFADDR, SIOCGIFNETMASK};
 use nix::sys::epoll::*;
-use nix::sys::socket::sockopt::{
-    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, ReuseAddr,
-};
 use nix::sys::socket::*;
 use std::collections::HashMap;
 use std::error::Error;
-use std::ffi::OsString;
-use std::mem;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::Ipv4Addr;
+use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
-use std::os::fd::{AsRawFd, OwnedFd};
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
+mod interface;
 
-const MDNS_PORT: u16 = 5353;
-const MDNS_ADDR: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
-
-nix::ioctl_read_bad!(siocgifaddr, SIOCGIFADDR, ifreq);
-nix::ioctl_read_bad!(siocgifnetmask, SIOCGIFNETMASK, ifreq);
+type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -34,95 +24,6 @@ struct Args {
     /// Subnets that will be repeated to the other interfaces
     #[arg(short, long)]
     additional_subnets: Vec<String>,
-}
-
-fn ifreq_for(name: &str) -> ifreq {
-    let mut req: ifreq = unsafe { mem::zeroed() };
-    for (i, byte) in name.as_bytes().iter().enumerate() {
-        req.ifr_name[i] = *byte as c_char
-    }
-    req
-}
-
-fn sockaddr_to_ipv4addr(addr: sockaddr) -> Result<Ipv4Addr> {
-    Ok(Ipv4Addr::new(
-        addr.sa_data[2].try_into()?,
-        addr.sa_data[3].try_into()?,
-        addr.sa_data[4].try_into()?,
-        addr.sa_data[5].try_into()?,
-    ))
-}
-
-fn get_network_for_interface(interface_name: &String, sock_fd: &OwnedFd) -> Result<Ipv4Net> {
-    let mut req = ifreq_for(&interface_name);
-    let addr: Ipv4Addr;
-    unsafe {
-        // get the ipv4 address
-        siocgifaddr(sock_fd.as_raw_fd(), &mut req)?;
-        addr = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
-    };
-
-    let mask: Ipv4Addr;
-    unsafe {
-        // get the ipv4 mask
-        siocgifnetmask(sock_fd.as_raw_fd(), &mut req)?;
-        mask = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
-    };
-
-    Ok(Ipv4Net::with_netmask(addr, mask)?)
-}
-fn create_udp_multicast_sock(interface_name: &String) -> Result<OwnedFd> {
-    let sock = socket(
-        AddressFamily::Inet,
-        SockType::Datagram,
-        SockFlag::empty(),
-        SockProtocol::Udp,
-    )?;
-
-    setsockopt(&sock, BindToDevice, &OsString::from(&interface_name))?;
-    setsockopt(&sock, ReuseAddr, &true)?;
-    setsockopt(&sock, IpMulticastLoop, &true)?;
-    setsockopt(&sock, Ipv4PacketInfo, &true)?;
-
-    Ok(sock)
-}
-
-#[derive(Debug)]
-struct Interface {
-    pub name: String,
-    pub network: Ipv4Net,
-    pub tx_sock: OwnedFd,
-    pub rx_sock: OwnedFd,
-}
-
-impl Interface {
-    fn new(interface_name: &String) -> Result<Self> {
-        let tx_sock = create_udp_multicast_sock(interface_name)?;
-        let network = get_network_for_interface(interface_name, &tx_sock)?;
-        let sock_addr = &SockaddrIn::from(SocketAddrV4::new(network.addr(), MDNS_PORT));
-        bind(tx_sock.as_raw_fd(), sock_addr)?;
-        setsockopt(
-            &tx_sock,
-            IpAddMembership,
-            &IpMembershipRequest::new(MDNS_ADDR, Some(network.addr())),
-        )?;
-        setsockopt(&tx_sock, Ipv4Ttl, &255)?;
-
-        let rx_sock = create_udp_multicast_sock(interface_name)?;
-        let sock_addr = &SockaddrIn::from(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), MDNS_PORT));
-        bind(rx_sock.as_raw_fd(), sock_addr)?;
-
-        Ok(Interface {
-            name: interface_name.clone(),
-            network,
-            tx_sock,
-            rx_sock,
-        })
-    }
-
-    fn network_contains_addr(&self, other: Ipv4Addr) -> bool {
-        self.network.contains(&other)
-    }
 }
 
 fn main() -> Result<()> {
@@ -149,21 +50,24 @@ fn main() -> Result<()> {
     let interfaces = args
         .interfaces
         .iter()
-        .map(|interface_name| match Interface::new(interface_name) {
-            Ok(interface) => {
-                info!(
-                    "interface {:?}: network {:?}",
-                    interface_name, interface.network
-                );
-                return interface;
-            }
-            Err(err) => panic!(
-                "Error occurred while establishing interface {:?} - {:?}",
-                interface_name,
-                err.to_string()
-            ),
-        })
-        .collect::<Vec<Interface>>();
+        .map(
+            |interface_name| match interface::Interface::new(interface_name) {
+                Ok(interface) => {
+                    info!(
+                        "interface {:?}: ipv4 {:?}",
+                        interface_name,
+                        interface.ipv4_addr()
+                    );
+                    return interface;
+                }
+                Err(err) => panic!(
+                    "Error occurred while establishing interface {:?} - {:?}",
+                    interface_name,
+                    err.to_string()
+                ),
+            },
+        )
+        .collect::<Vec<interface::Interface>>();
 
     debug!("Setting up the epoll");
     let epoll = Epoll::new(EpollCreateFlags::empty()).unwrap();
@@ -172,12 +76,13 @@ fn main() -> Result<()> {
     info!("Setting up server sockets");
     let mut rx_socks = HashMap::new();
     interfaces.iter().for_each(|interface| {
-        let event = EpollEvent::new(EpollFlags::EPOLLIN, interface.rx_sock.as_raw_fd() as u64);
-        epoll.add(&interface.rx_sock, event).unwrap();
-        rx_socks.insert(interface.rx_sock.as_raw_fd(), interface);
+        let fd = interface.rx_fd();
+        let event = EpollEvent::new(EpollFlags::EPOLLIN, fd.as_raw_fd() as u64);
+        epoll.add(&fd, event).unwrap();
+        rx_socks.insert(fd.as_raw_fd(), interface);
     });
 
-    let dst: SockaddrIn = SockaddrIn::new(224, 0, 0, 251, MDNS_PORT);
+    let dst: SockaddrIn = SockaddrIn::new(224, 0, 0, 251, interface::MDNS_PORT);
     loop {
         let num = epoll.wait(&mut epoll_events, 1000).unwrap();
         trace!("Received {} events", num);
@@ -201,14 +106,20 @@ fn main() -> Result<()> {
             let src_interface = src_interface.unwrap();
 
             // ignore loopbacks
-            if src_interface.network.addr() == addr {
-                debug!("Ignoring loopback a MDNS packet from {:?}", addr);
+            if src_interface.ipv4_addr() == addr {
+                trace!(
+                    "Ignoring loopback a MDNS packet from {:?} - {:?}",
+                    src_interface.name(),
+                    addr
+                );
                 continue 'events;
             }
 
             debug!(
                 "Received MDNS packets from {:?} from {:?} (sockfd: {})",
-                addr, src_interface.name, sockfd
+                addr,
+                src_interface.name(),
+                sockfd
             );
 
             if !src_interface.network_contains_addr(addr) {
@@ -217,29 +128,29 @@ fn main() -> Result<()> {
                     trace!(
                         "Ignoring MDNS packet from {:?} that originates from outside the source network {:?}",
                         addr,
-                        src_interface.network
+                        src_interface.ipv4_addr()
                     );
                     continue 'events;
                 }
                 debug!(
                     "Allowing MDNS packet from {:?} that originates from outside the source network {:?} (allowed subnet {:?}",
                     addr,
-                    src_interface.name,
+                    src_interface.name(),
                     allowed_subnet.unwrap()
                 );
             }
 
             interfaces
                 .iter()
-                .filter(|interface| !interface.name.eq(&src_interface.name))
+                .filter(|interface| !interface.name().eq(src_interface.name()))
                 .for_each(|interface| {
-                    match sendto(interface.tx_sock.as_raw_fd(), data, &dst, MsgFlags::empty()) {
+                    match sendto(interface.tx_fd().as_raw_fd(), data, &dst, MsgFlags::empty()) {
                         Err(err) => {
-                            error!("Unable to forward MDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name, err)
+                            error!("Unable to forward MDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
                         }
                         Ok(_) => info!(
                             "Forwared MDNS packets from {:?} to {:?}",
-                            addr, interface.name
+                            addr, interface.name()
                         ),
                     }
                 });
