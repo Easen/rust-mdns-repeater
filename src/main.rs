@@ -6,9 +6,9 @@ use nix::sys::epoll::*;
 use nix::sys::socket::*;
 use std::collections::HashMap;
 use std::error::Error;
-use std::net::{Ipv4Addr};
+use std::net::Ipv4Addr;
+use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
-use std::os::fd::{AsRawFd};
 
 mod interface;
 
@@ -54,8 +54,9 @@ fn main() -> Result<()> {
             |interface_name| match interface::Interface::new(interface_name) {
                 Ok(interface) => {
                     info!(
-                        "interface {:?}: network {:?}",
-                        interface_name, interface.network
+                        "interface {:?}: ipv4 {:?}",
+                        interface_name,
+                        interface.ipv4_addr()
                     );
                     return interface;
                 }
@@ -75,9 +76,10 @@ fn main() -> Result<()> {
     info!("Setting up server sockets");
     let mut rx_socks = HashMap::new();
     interfaces.iter().for_each(|interface| {
-        let event = EpollEvent::new(EpollFlags::EPOLLIN, interface.rx_sock.as_raw_fd() as u64);
-        epoll.add(&interface.rx_sock, event).unwrap();
-        rx_socks.insert(interface.rx_sock.as_raw_fd(), interface);
+        let fd = interface.rx_fd();
+        let event = EpollEvent::new(EpollFlags::EPOLLIN, fd.as_raw_fd() as u64);
+        epoll.add(&fd, event).unwrap();
+        rx_socks.insert(fd.as_raw_fd(), interface);
     });
 
     let dst: SockaddrIn = SockaddrIn::new(224, 0, 0, 251, interface::MDNS_PORT);
@@ -104,8 +106,12 @@ fn main() -> Result<()> {
             let src_interface = src_interface.unwrap();
 
             // ignore loopbacks
-            if src_interface.network.addr() == addr {
-                debug!("Ignoring loopback a MDNS packet from {:?}", addr);
+            if src_interface.ipv4_addr() == addr {
+                trace!(
+                    "Ignoring loopback a MDNS packet from {:?} - {:?}",
+                    src_interface.name(),
+                    addr
+                );
                 continue 'events;
             }
 
@@ -120,29 +126,29 @@ fn main() -> Result<()> {
                     trace!(
                         "Ignoring MDNS packet from {:?} that originates from outside the source network {:?}",
                         addr,
-                        src_interface.network
+                        src_interface.ipv4_addr()
                     );
                     continue 'events;
                 }
                 debug!(
                     "Allowing MDNS packet from {:?} that originates from outside the source network {:?} (allowed subnet {:?}",
                     addr,
-                    src_interface.name,
+                    src_interface.name(),
                     allowed_subnet.unwrap()
                 );
             }
 
             interfaces
                 .iter()
-                .filter(|interface| !interface.name.eq(&src_interface.name))
+                .filter(|interface| !interface.name().eq(src_interface.name()))
                 .for_each(|interface| {
-                    match sendto(interface.tx_sock.as_raw_fd(), data, &dst, MsgFlags::empty()) {
+                    match sendto(interface.tx_fd().as_raw_fd(), data, &dst, MsgFlags::empty()) {
                         Err(err) => {
-                            error!("Unable to forward MDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name, err)
+                            error!("Unable to forward MDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
                         }
                         Ok(_) => info!(
                             "Forwared MDNS packets from {:?} to {:?}",
-                            addr, interface.name
+                            addr, interface.name()
                         ),
                     }
                 });

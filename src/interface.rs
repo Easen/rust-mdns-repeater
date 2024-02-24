@@ -71,10 +71,10 @@ fn create_udp_multicast_sock(interface_name: &String) -> Result<OwnedFd> {
 
 #[derive(Debug)]
 pub struct Interface {
-    pub name: String,
-    pub network: Ipv4Net,
-    pub tx_sock: OwnedFd,
-    pub rx_sock: OwnedFd,
+    name: String,
+    network: Ipv4Net,
+    tx_sock: OwnedFd,
+    rx_sock: OwnedFd,
 }
 
 impl Interface {
@@ -100,6 +100,22 @@ impl Interface {
             tx_sock,
             rx_sock,
         })
+    }
+
+    pub fn name(&self) -> &String {
+        return &self.name;
+    }
+
+    pub fn ipv4_addr(&self) -> Ipv4Addr {
+        return self.network.addr();
+    }
+
+    pub fn rx_fd(&self) -> &OwnedFd {
+        return &self.rx_sock;
+    }
+
+    pub fn tx_fd(&self) -> &OwnedFd {
+        return &self.tx_sock;
     }
 
     pub fn network_contains_addr(&self, other: Ipv4Addr) -> bool {
