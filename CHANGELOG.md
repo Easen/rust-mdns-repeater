@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.2.0...v0.3.0) (2024-02-24)
+
+
+### Features
+
+* parse dns when in trace mode ([#5](https://github.com/Easen/rust-mdns-repeater/issues/5)) ([ac44363](https://github.com/Easen/rust-mdns-repeater/commit/ac4436391dcb44843e27a7a58d1cc709fbe900bc))
+
 ## [0.2.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.1.0...v0.2.0) (2024-02-23)
 
 
