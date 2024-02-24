@@ -163,8 +163,8 @@ fn main() -> Result<()> {
                             error!("Unable to forward MDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
                         }
                         Ok(_) => info!(
-                            "Forwared MDNS packets from {:?} to {:?}",
-                            addr, interface.name()
+                            "Forwarded MDNS packets ({} bytes) from {:?} to {:?} ",
+                            data.len(), addr, interface.name()
                         ),
                     }
                 });
