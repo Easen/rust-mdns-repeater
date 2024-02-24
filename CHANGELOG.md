@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Easen/rust-mdns-repeater/compare/v0.3.0...v0.3.1) (2024-02-24)
+
+
+### Bug Fixes
+
+* forwarded log message (spelling & missing bytes) ([#7](https://github.com/Easen/rust-mdns-repeater/issues/7)) ([79fb473](https://github.com/Easen/rust-mdns-repeater/commit/79fb473d60025e9ec10bfcade11d305cbd413b4c))
+
 ## [0.3.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.2.0...v0.3.0) (2024-02-24)
 
 
