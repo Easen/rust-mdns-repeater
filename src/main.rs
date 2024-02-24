@@ -1,7 +1,9 @@
 use clap::Parser;
+use dns_parser::Packet;
 use env_logger::Env;
 use ipnet::Ipv4Net;
-use log::{debug, error, info, trace};
+use log::Level::Trace;
+use log::{debug, error, info, log_enabled, trace};
 use nix::sys::epoll::*;
 use nix::sys::socket::*;
 use std::collections::HashMap;
@@ -115,17 +117,29 @@ fn main() -> Result<()> {
                 continue 'events;
             }
 
-            debug!(
-                "Received MDNS packets from {:?} from {:?} (sockfd: {})",
-                addr,
-                src_interface.name(),
-                sockfd
-            );
+            if log_enabled!(Trace) {
+                let dns_packet = Packet::parse(data);
+                if dns_packet.is_ok() {
+                    let dns_packet = dns_packet.unwrap();
+                    trace!(
+                        "Parsed MDNS packet from {:?} from {:?}- {:?}",
+                        addr,
+                        src_interface.name(),
+                        dns_packet
+                    );
+                }
+            } else {
+                debug!(
+                    "Received MDNS packets from {:?} from {:?})",
+                    addr,
+                    src_interface.name()
+                );
+            }
 
             if !src_interface.network_contains_addr(addr) {
                 let allowed_subnet = aditional_subnets.iter().find(|i| i.contains(&addr));
                 if allowed_subnet.is_none() {
-                    trace!(
+                    debug!(
                         "Ignoring MDNS packet from {:?} that originates from outside the source network {:?}",
                         addr,
                         src_interface.ipv4_addr()
