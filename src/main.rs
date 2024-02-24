@@ -117,7 +117,9 @@ fn main() -> Result<()> {
 
             debug!(
                 "Received MDNS packets from {:?} from {:?} (sockfd: {})",
-                addr, src_interface.name, sockfd
+                addr,
+                src_interface.name(),
+                sockfd
             );
 
             if !src_interface.network_contains_addr(addr) {
