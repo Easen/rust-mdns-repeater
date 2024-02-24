@@ -21,19 +21,6 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
   docker:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - 
-            TARGET: x86_64-unknown-linux-musl # test in an alpine container on a mac
-            PLATFORMS: linux/amd64
-          - 
-            TARGET: aarch64-unknown-linux-musl # tested on aws t4g.nano in alpine container
-            PLATFORMS: linux/arm64
-          - 
-            TARGET: armv7-unknown-linux-musleabihf # raspberry pi 2-3-4, not tested
-            PLATFORMS: linux/arm/v7
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -63,8 +50,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: ${{ matrix.PLATFORMS }}
-          build-args: TARGET=${{ matrix.TARGET }}
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
