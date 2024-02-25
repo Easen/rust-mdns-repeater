@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.3.2...v0.4.0) (2024-02-25)
+
+
+### Features
+
+* do not forward mDNS queries from given internets (e.g. isolated… ([#11](https://github.com/Easen/rust-mdns-repeater/issues/11)) ([fab5015](https://github.com/Easen/rust-mdns-repeater/commit/fab5015582e71a322b6532452770f128709601d3))
+
 ## [0.3.2](https://github.com/Easen/rust-mdns-repeater/compare/v0.3.1...v0.3.2) (2024-02-25)
 
 
