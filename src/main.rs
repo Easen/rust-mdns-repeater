@@ -21,15 +21,15 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 struct Args {
     /// Interfaces
     #[arg(short, long)]
-    interfaces: Vec<String>,
+    interface: Vec<String>,
 
-    /// Subnets that will be repeated to the other interfaces
-    #[arg(short, long)]
-    additional_subnets: Vec<String>,
-
-    /// do not forward mDNS queries from these interfaces
+    /// Additional subnets that will be repeated to the other interfaces
     #[arg(long)]
-    do_not_forward_querys: Vec<String>,
+    additional_subnet: Vec<String>,
+
+    /// Ignore mDNS question/queries from these interfaces
+    #[arg(long)]
+    ignore_question_subnet: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -38,23 +38,33 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    if args.interfaces.len() < 2 {
+    if args.interface.len() < 2 {
         panic!("At least 2 interfaces are required");
     }
 
     let aditional_subnets = args
-        .additional_subnets
+        .additional_subnet
         .iter()
-        .map(|s| s.parse().unwrap())
+        .map(|s| {
+            let subnet = s.parse().unwrap();
+            info!("allowed_subenet = {:?}", subnet);
+            subnet
+        })
         .collect::<Vec<Ipv4Net>>();
 
-    aditional_subnets
+    let ignore_question_subnets = args
+        .ignore_question_subnet
         .iter()
-        .for_each(|a| info!("allowed_subenet = {:?}", a));
+        .map(|s| {
+            let subnet = s.parse().unwrap();
+            info!("ignore_question_subnet = {:?}", subnet);
+            subnet
+        })
+        .collect::<Vec<Ipv4Net>>();
 
     debug!("Setting up the interfaces");
     let interfaces = args
-        .interfaces
+        .interface
         .iter()
         .map(
             |interface_name| match interface::Interface::new(interface_name) {
@@ -143,7 +153,7 @@ fn main() -> Result<()> {
             if !src_interface.network_contains_addr(addr) {
                 let allowed_subnet = aditional_subnets.iter().find(|i| i.contains(&addr));
                 if allowed_subnet.is_none() {
-                    debug!(
+                    info!(
                         "Ignoring mDNS packet from {:?} that originates from outside the source network {:?}",
                         addr,
                         src_interface.ipv4_addr()
@@ -158,17 +168,20 @@ fn main() -> Result<()> {
                 );
             }
 
-            if args.do_not_forward_querys.len() > 0
-                && args.do_not_forward_querys.contains(&src_interface.name())
-            {
-                let dns_packet = Packet::parse(data);
-                if dns_packet.is_ok() && dns_packet?.questions.len() > 0 {
-                    debug!(
-                        "Ignoring mDNS query from {:?} as it originates from {:?} (do_not_forward_querys)",
-                        addr,
-                        src_interface.name()
-                    );
-                    continue 'events;
+            if ignore_question_subnets.len() > 0 {
+                if let Some(ignored_subnet) =
+                    ignore_question_subnets.iter().find(|x| x.contains(&addr))
+                {
+                    let dns_packet = Packet::parse(data);
+                    if dns_packet.is_ok() && dns_packet?.questions.len() > 0 {
+                        info!(
+                            "Ignoring mDNS question from {:?} as it originates from the subnet {:?} (interface {:?})",
+                            addr,
+                            ignored_subnet,
+                            src_interface.name()
+                        );
+                        continue 'events;
+                    }
                 }
             }
 

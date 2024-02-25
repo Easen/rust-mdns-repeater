@@ -18,14 +18,14 @@
                 }
             },
             "args": [
-                "-i",
+                "--interface",
                 "eth0",
-                "-i",
+                "--interface",
                 "eth0.20",
-                "-a",
+                "--additional-subnet",
                 "192.168.10.0/24",
-                "--do-not-forward-querys",
-                "eth0"
+                "--ignore-question-subnet",
+                "10.1.10.0/24"
             ]
         }
     ]
