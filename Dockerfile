@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM rust:1.76 AS builder
+FROM rust:1.76 AS builder
 ARG TARGETPLATFORM
 ARG TARGETARCH
 RUN case "$TARGETPLATFORM" in \
