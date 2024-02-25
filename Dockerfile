@@ -8,7 +8,6 @@ RUN case "$TARGETPLATFORM" in \
       *) exit 1 ;; \
     esac
 RUN rustup target add $(cat /$TARGETARCH.txt)
-RUN apt-get update && apt-get -y install binutils-arm-linux-gnueabihf
 WORKDIR /app
 COPY . .
 RUN cargo build --target $(cat /$TARGETARCH.txt) --release --bins
