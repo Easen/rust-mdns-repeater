@@ -26,6 +26,10 @@ struct Args {
     /// Subnets that will be repeated to the other interfaces
     #[arg(short, long)]
     additional_subnets: Vec<String>,
+
+    /// do not forward mDNS queries from these interfaces
+    #[arg(long)]
+    do_not_forward_querys: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -100,7 +104,7 @@ fn main() -> Result<()> {
             let src_interface = rx_socks.get(&sockfd);
             if src_interface.is_none() {
                 debug!(
-                    "Ignoring a MDNS packet from an unknown interface from {:?}",
+                    "Ignoring a mDNS packet from an unknown interface from {:?}",
                     addr
                 );
                 continue 'events;
@@ -110,7 +114,7 @@ fn main() -> Result<()> {
             // ignore loopbacks
             if src_interface.ipv4_addr() == addr {
                 trace!(
-                    "Ignoring loopback a MDNS packet from {:?} - {:?}",
+                    "Ignoring loopback mDNS packet from {:?} - {:?}",
                     src_interface.name(),
                     addr
                 );
@@ -122,7 +126,7 @@ fn main() -> Result<()> {
                 if dns_packet.is_ok() {
                     let dns_packet = dns_packet.unwrap();
                     trace!(
-                        "Parsed MDNS packet from {:?} from {:?}- {:?}",
+                        "Parsed mDNS packet from {:?} from {:?}- {:?}",
                         addr,
                         src_interface.name(),
                         dns_packet
@@ -130,7 +134,7 @@ fn main() -> Result<()> {
                 }
             } else {
                 debug!(
-                    "Received MDNS packets from {:?} from {:?})",
+                    "Received mDNS packets from {:?} from {:?})",
                     addr,
                     src_interface.name()
                 );
@@ -140,18 +144,32 @@ fn main() -> Result<()> {
                 let allowed_subnet = aditional_subnets.iter().find(|i| i.contains(&addr));
                 if allowed_subnet.is_none() {
                     debug!(
-                        "Ignoring MDNS packet from {:?} that originates from outside the source network {:?}",
+                        "Ignoring mDNS packet from {:?} that originates from outside the source network {:?}",
                         addr,
                         src_interface.ipv4_addr()
                     );
                     continue 'events;
                 }
                 debug!(
-                    "Allowing MDNS packet from {:?} that originates from outside the source network {:?} (allowed subnet {:?}",
+                    "Allowing mDNS packet from {:?} that originates from outside the source network {:?} (allowed subnet {:?}",
                     addr,
                     src_interface.name(),
                     allowed_subnet.unwrap()
                 );
+            }
+
+            if args.do_not_forward_querys.len() > 0
+                && args.do_not_forward_querys.contains(&src_interface.name())
+            {
+                let dns_packet = Packet::parse(data);
+                if dns_packet.is_ok() && dns_packet?.questions.len() > 0 {
+                    debug!(
+                        "Ignoring mDNS query from {:?} as it originates from {:?} (do_not_forward_querys)",
+                        addr,
+                        src_interface.name()
+                    );
+                    continue 'events;
+                }
             }
 
             interfaces
@@ -160,10 +178,10 @@ fn main() -> Result<()> {
                 .for_each(|interface| {
                     match sendto(interface.tx_fd().as_raw_fd(), data, &dst, MsgFlags::empty()) {
                         Err(err) => {
-                            error!("Unable to forward MDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
+                            error!("Unable to forward mDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
                         }
                         Ok(_) => info!(
-                            "Forwarded MDNS packets ({} bytes) from {:?} to {:?} ",
+                            "Forwarded mDNS packets ({} bytes) from {:?} to {:?} ",
                             data.len(), addr, interface.name()
                         ),
                     }
