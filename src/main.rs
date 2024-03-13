@@ -28,11 +28,11 @@ struct Args {
     #[arg(short, long)]
     interface: Vec<String>,
 
-    /// Additional subnets that will be repeated to the other interfaces
+    /// Additional subnets that will be repeated to the other interfaces (Ipv4 only)
     #[arg(long)]
     additional_subnet: Vec<String>,
 
-    /// Ignore mDNS question/queries from these interfaces
+    /// Ignore mDNS question/queries from these IPv4/IPv6 Subnets
     #[arg(long)]
     ignore_question_subnet: Vec<String>,
 }
@@ -123,12 +123,12 @@ fn main() -> Result<()> {
         rx_socks.insert(rx_fd.as_raw_fd(), interface);
     });
 
-    // ipv6_interfaces.iter().for_each(|interface| {
-    //     let rx_fd = interface.rx_fd();
-    //     let event = EpollEvent::new(EpollFlags::EPOLLIN, rx_fd.as_raw_fd() as u64);
-    //     epoll.add(&rx_fd, event).unwrap();
-    //     rx_socks.insert(rx_fd.as_raw_fd(), interface);
-    // });
+    ipv6_interfaces.iter().for_each(|interface| {
+        let rx_fd = interface.rx_fd();
+        let event = EpollEvent::new(EpollFlags::EPOLLIN, rx_fd.as_raw_fd() as u64);
+        epoll.add(&rx_fd, event).unwrap();
+        rx_socks.insert(rx_fd.as_raw_fd(), interface);
+    });
 
     let dst: SockaddrIn = SockaddrIn::new(224, 0, 0, 251, interface::MDNS_PORT);
 
