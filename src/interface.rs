@@ -1,20 +1,17 @@
 use ipnet::{Ipv4Net, Ipv6Net};
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
-use nix::libc::{
-    c_char, if_indextoname, if_nametoindex, ifreq, O_NONBLOCK, SIOCGIFADDR, SIOCGIFNETMASK,
-};
+use nix::libc::{c_char, if_nametoindex, ifreq, O_NONBLOCK, SIOCGIFADDR, SIOCGIFNETMASK};
 use nix::sys::socket::sockopt::{
-    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, Ipv6MulticastHops,
-    Ipv6RecvPacketInfo, Ipv6V6Only, ReuseAddr, ReusePort,
+    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, Ipv6RecvPacketInfo,
+    Ipv6V6Only, ReuseAddr,
 };
 use nix::sys::socket::*;
 use std::error::Error;
 use std::ffi::OsString;
 use std::io;
-use std::mem::{self, size_of_val};
+use std::mem::{self};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::{AsRawFd, OwnedFd};
-use std::os::raw::c_void;
 
 pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -66,7 +63,6 @@ enum SockDirection {
 }
 
 const ON: bool = true;
-const OFF: bool = false;
 
 fn create_udp_sock(
     interface_name: &String,
@@ -82,10 +78,10 @@ fn create_udp_sock(
 
     match domain {
         AddressFamily::Inet => {
-            setsockopt(&sock, IpMulticastLoop, &true)?;
+            setsockopt(&sock, IpMulticastLoop, &ON)?;
             match sock_direction {
                 SockDirection::RX => {
-                    setsockopt(&sock, Ipv4PacketInfo, &true)?;
+                    setsockopt(&sock, Ipv4PacketInfo, &ON)?;
                     setsockopt(&sock, BindToDevice, &OsString::from(&interface_name))?;
                 }
                 SockDirection::TX => unsafe {
@@ -105,14 +101,15 @@ fn create_udp_sock(
             }
         }
         AddressFamily::Inet6 => {
-            setsockopt(&sock, Ipv6V6Only, &true)?;
+            setsockopt(&sock, Ipv6V6Only, &ON)?;
             match sock_direction {
                 SockDirection::RX => {
-                    setsockopt(&sock, Ipv6RecvPacketInfo, &true)?;
+                    setsockopt(&sock, Ipv6RecvPacketInfo, &ON)?;
                     setsockopt(&sock, BindToDevice, &OsString::from(&interface_name))?;
                 }
                 SockDirection::TX => unsafe {
-                    let ifindex = if_nametoindex(interface_name.as_ptr());
+                    let ifindex =
+                        if_nametoindex(&interface_name as *const _ as *const nix::libc::c_char);
                     let res = nix::libc::setsockopt(
                         sock.as_raw_fd(),
                         nix::libc::IPPROTO_IPV6,
@@ -139,7 +136,7 @@ fn create_udp_sock(
         }
         _ => {}
     };
-    setsockopt(&sock, ReuseAddr, &true)?;
+    setsockopt(&sock, ReuseAddr, &ON)?;
 
     let flags = fcntl(sock.as_raw_fd(), FcntlArg::F_GETFD)?;
     fcntl(
@@ -203,10 +200,10 @@ impl Interface {
         match self {
             Interface::V4(x) => match other {
                 IpAddr::V4(ip) => x.network.contains(&ip),
-                IpAddr::V6(ip) => false,
+                IpAddr::V6(_) => false,
             },
             Interface::V6(x) => match other {
-                IpAddr::V4(ip) => false,
+                IpAddr::V4(_) => false,
                 IpAddr::V6(ip) => x.network.contains(&ip),
             },
         }
