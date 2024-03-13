@@ -11,4 +11,4 @@ dns-parser = "0.8.0"
 env_logger = "0.11.1"
 ipnet = "2.9.0"
 log = "0.4.20"
-nix = { version = "0.27.1", features = ["socket", "event", "net", "ioctl"] }
+nix = { version = "0.28.0", features = ["socket", "event", "net", "ioctl", "fs"] }
