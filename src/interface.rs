@@ -105,18 +105,6 @@ fn create_udp_sock(
         AddressFamily::Inet6 => {
             setsockopt(&sock, Ipv6V6Only, &ON)?;
 
-            unsafe {
-                let res = nix::libc::setsockopt(
-                    sock.as_raw_fd(),
-                    nix::libc::IPPROTO_IPV6,
-                    nix::libc::IPV6_MULTICAST_LOOP,
-                    &0 as *const _ as *const _,
-                    mem::size_of_val(&0) as _,
-                );
-                if res != 0 {
-                    return Err(Box::new(io::Error::last_os_error()));
-                }
-            }
             match sock_direction {
                 SockDirection::RX => {
                     setsockopt(&sock, Ipv6RecvPacketInfo, &ON)?;
@@ -136,16 +124,16 @@ fn create_udp_sock(
                         return Err(Box::new(io::Error::last_os_error()));
                     }
 
-                    // let res = nix::libc::setsockopt(
-                    //     sock.as_raw_fd(),
-                    //     nix::libc::IPPROTO_IPV6,
-                    //     nix::libc::IPV6_MULTICAST_LOOP,
-                    //     &OFF as *const _ as *const nix::libc::c_void,
-                    //     mem::size_of_val(&OFF) as nix::libc::socklen_t,
-                    // );
-                    // if res != 0 {
-                    //     return Err(Box::new(io::Error::last_os_error()));
-                    // }
+                    let res = nix::libc::setsockopt(
+                        sock.as_raw_fd(),
+                        nix::libc::IPPROTO_IPV6,
+                        nix::libc::IPV6_MULTICAST_LOOP,
+                        &0 as *const _ as *const _,
+                        mem::size_of_val(&0) as _,
+                    );
+                    if res != 0 {
+                        return Err(Box::new(io::Error::last_os_error()));
+                    }
                 },
             }
         }
