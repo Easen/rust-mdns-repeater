@@ -8,14 +8,14 @@ use nix::sys::epoll::*;
 use nix::sys::socket::*;
 use std::collections::HashMap;
 use std::error::Error;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 
 mod interface;
-use interface::{Interface, InterfaceV4};
+use interface::{Interface, InterfaceV4, InterfaceV6, IPV4_MDNS_ADDR, IPV6_MDNS_ADDR};
 
-use crate::interface::InterfaceV6;
+use crate::interface::MDNS_PORT;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -35,6 +35,12 @@ struct Args {
     /// Ignore mDNS question/queries from these IPv4/IPv6 Subnets
     #[arg(long)]
     ignore_question_subnet: Vec<String>,
+
+    #[arg(long, default_value_t = false)]
+    disable_ipv4: bool,
+
+    #[arg(long, default_value_t = false)]
+    disable_ipv6: bool,
 }
 
 fn main() -> Result<()> {
@@ -68,47 +74,56 @@ fn main() -> Result<()> {
         .collect::<Vec<IpNet>>();
 
     debug!("Setting up the interfaces");
-    let interfaces: Vec<Interface> = args
-        .interface
-        .iter()
-        .map(|interface_name| match InterfaceV4::new(interface_name) {
-            Ok(interface) => {
-                let interface = Interface::V4(interface);
-                info!(
-                    "interface {:?}: ipv4 {:?}",
-                    interface_name,
-                    interface.addr()
-                );
-                return interface;
-            }
-            Err(err) => panic!(
-                "Error occurred while establishing interface {:?} - {:?}",
-                interface_name,
-                err.to_string()
-            ),
-        })
-        .collect::<Vec<Interface>>();
+    let mut interfaces = Vec::new();
 
-    let ipv6_interfaces: Vec<Interface> = args
-        .interface
-        .iter()
-        .map(|interface_name| match InterfaceV6::new(interface_name) {
-            Ok(interface) => {
-                let interface = Interface::V6(interface);
-                info!(
-                    "interface {:?}: ipv6 {:?}",
+    if !args.disable_ipv4 {
+        let mut ipv4_interfaces: Vec<Interface> = args
+            .interface
+            .iter()
+            .map(|interface_name| match InterfaceV4::new(interface_name) {
+                Ok(interface) => {
+                    let interface = Interface::V4(interface);
+                    info!(
+                        "interface {:?}: ipv4 {:?}",
+                        interface_name,
+                        interface.addr()
+                    );
+                    return interface;
+                }
+                Err(err) => panic!(
+                    "Error occurred while establishing interface {:?} - {:?}",
                     interface_name,
-                    interface.addr()
-                );
-                return interface;
-            }
-            Err(err) => panic!(
-                "Error occurred while establishing interface {:?} - {:?}",
-                interface_name,
-                err.to_string()
-            ),
-        })
-        .collect::<Vec<Interface>>();
+                    err.to_string()
+                ),
+            })
+            .collect::<Vec<Interface>>();
+
+        interfaces.append(&mut ipv4_interfaces);
+    };
+
+    if !args.disable_ipv6 {
+        let mut ipv6_interfaces: Vec<Interface> = args
+            .interface
+            .iter()
+            .map(|interface_name| match InterfaceV6::new(interface_name) {
+                Ok(interface) => {
+                    let interface = Interface::V6(interface);
+                    info!(
+                        "interface {:?}: ipv6 {:?}",
+                        interface_name,
+                        interface.addr()
+                    );
+                    return interface;
+                }
+                Err(err) => panic!(
+                    "Error occurred while establishing interface {:?} - {:?}",
+                    interface_name,
+                    err.to_string()
+                ),
+            })
+            .collect::<Vec<Interface>>();
+        interfaces.append(&mut ipv6_interfaces);
+    }
 
     debug!("Setting up the epoll");
     let epoll = Epoll::new(EpollCreateFlags::empty()).unwrap();
@@ -123,17 +138,17 @@ fn main() -> Result<()> {
         rx_socks.insert(rx_fd.as_raw_fd(), interface);
     });
 
-    ipv6_interfaces.iter().for_each(|interface| {
-        let rx_fd = interface.rx_fd();
-        let event = EpollEvent::new(EpollFlags::EPOLLIN, rx_fd.as_raw_fd() as u64);
-        epoll.add(&rx_fd, event).unwrap();
-        rx_socks.insert(rx_fd.as_raw_fd(), interface);
-    });
-
-    let dst: SockaddrIn = SockaddrIn::new(224, 0, 0, 251, interface::MDNS_PORT);
+    let ipv4_dst: SockaddrIn = SockaddrIn::from(SocketAddrV4::new(IPV4_MDNS_ADDR, MDNS_PORT));
+    let ipv6_dst: SockaddrIn6 =
+        SockaddrIn6::from(SocketAddrV6::new(IPV6_MDNS_ADDR, MDNS_PORT, 0, 0));
 
     loop {
-        let num = epoll.wait(&mut epoll_events, EPOLL_TIMEOUT).unwrap();
+        let result = epoll.wait(&mut epoll_events, EPOLL_TIMEOUT);
+        if result.is_err() {
+            error!("Error from epoll {:?}", result.err());
+            continue;
+        }
+        let num = result.unwrap();
         if num == 0 {
             continue;
         }
@@ -194,9 +209,10 @@ fn main() -> Result<()> {
                 }
             } else {
                 debug!(
-                    "Received mDNS packets from {:?} from {:?})",
+                    "Received  mDNS packets from {:?} from {:?}) ({} bytes)",
                     addr,
-                    src_interface.name()
+                    src_interface.name(),
+                    data.len()
                 );
             }
 
@@ -240,17 +256,32 @@ fn main() -> Result<()> {
                 }
             }
 
+            let is_src_interface_ipv4 = match src_interface {
+                Interface::V4(_) => true,
+                _ => false,
+            };
+
             interfaces
                 .iter()
                 .filter(|interface| !interface.name().eq(src_interface.name()))
+                .filter(|interface| match interface {
+                    Interface::V4(_) => is_src_interface_ipv4,
+                    Interface::V6(_) => !is_src_interface_ipv4,
+
+                })
                 .for_each(|interface| {
-                    match sendto(interface.tx_fd().as_raw_fd(), data, &dst, MsgFlags::empty()) {
+                    let dst: &dyn SockaddrLike = match interface {
+                        Interface::V4(_) => &ipv4_dst,
+                        Interface::V6(_) => &ipv6_dst,
+    
+                    };
+                    match sendto(interface.tx_fd().as_raw_fd(), data, dst, MsgFlags::empty()) {
                         Err(err) => {
-                            error!("Unable to forward mDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
+                            error!("Unable to forward mDNS packets from {:?} to {:?} due to error - {:?}", addr, interface.name(), err)
                         }
                         Ok(_) => info!(
-                            "Forwarded mDNS packets ({} bytes) from {:?} to {:?} ",
-                            data.len(), addr, interface.name()
+                            "Forwarded mDNS packets from {:?} to {:?} ({} bytes)",
+                             addr, interface.name(),data.len()
                         ),
                     }
                 });

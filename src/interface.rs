@@ -2,8 +2,8 @@ use ipnet::{Ipv4Net, Ipv6Net};
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 use nix::libc::{c_char, if_nametoindex, ifreq, O_NONBLOCK, SIOCGIFADDR, SIOCGIFNETMASK};
 use nix::sys::socket::sockopt::{
-    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, Ipv6RecvPacketInfo,
-    Ipv6V6Only, ReuseAddr,
+    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, Ipv6AddMembership,
+    Ipv6RecvPacketInfo, Ipv6Ttl, Ipv6V6Only, ReuseAddr,
 };
 use nix::sys::socket::*;
 use std::error::Error;
@@ -16,7 +16,8 @@ use std::os::fd::{AsRawFd, OwnedFd};
 pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 pub const MDNS_PORT: u16 = 5353;
-pub const MDNS_ADDR: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
+pub const IPV4_MDNS_ADDR: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
+pub const IPV6_MDNS_ADDR: Ipv6Addr = Ipv6Addr::new(0xff02, 0, 0, 0, 0, 0, 0, 0x00fb); // ff02::fb
 
 nix::ioctl_read_bad!(siocgifaddr, SIOCGIFADDR, ifreq);
 nix::ioctl_read_bad!(siocgifnetmask, SIOCGIFNETMASK, ifreq);
@@ -63,6 +64,7 @@ enum SockDirection {
 }
 
 const ON: bool = true;
+const OFF: bool = false;
 
 fn create_udp_sock(
     interface_name: &String,
@@ -78,7 +80,7 @@ fn create_udp_sock(
 
     match domain {
         AddressFamily::Inet => {
-            setsockopt(&sock, IpMulticastLoop, &ON)?;
+            setsockopt(&sock, IpMulticastLoop, &OFF)?;
             match sock_direction {
                 SockDirection::RX => {
                     setsockopt(&sock, Ipv4PacketInfo, &ON)?;
@@ -102,6 +104,19 @@ fn create_udp_sock(
         }
         AddressFamily::Inet6 => {
             setsockopt(&sock, Ipv6V6Only, &ON)?;
+
+            unsafe {
+                let res = nix::libc::setsockopt(
+                    sock.as_raw_fd(),
+                    nix::libc::IPPROTO_IPV6,
+                    nix::libc::IPV6_MULTICAST_LOOP,
+                    &0 as *const _ as *const _,
+                    mem::size_of_val(&0) as _,
+                );
+                if res != 0 {
+                    return Err(Box::new(io::Error::last_os_error()));
+                }
+            }
             match sock_direction {
                 SockDirection::RX => {
                     setsockopt(&sock, Ipv6RecvPacketInfo, &ON)?;
@@ -219,7 +234,7 @@ impl InterfaceV4 {
         setsockopt(
             &tx_sock,
             IpAddMembership,
-            &IpMembershipRequest::new(MDNS_ADDR, Some(network.addr())),
+            &IpMembershipRequest::new(IPV4_MDNS_ADDR, Some(network.addr())),
         )?;
         setsockopt(&tx_sock, Ipv4Ttl, &255)?;
 
@@ -239,6 +254,13 @@ impl InterfaceV4 {
 impl InterfaceV6 {
     pub fn new(interface_name: &String) -> Result<Self> {
         let tx_sock = create_udp_sock(interface_name, AddressFamily::Inet6, SockDirection::TX)?;
+        setsockopt(
+            &tx_sock,
+            Ipv6AddMembership,
+            &Ipv6MembershipRequest::new(IPV6_MDNS_ADDR),
+        )?;
+        setsockopt(&tx_sock, Ipv6Ttl, &255)?;
+
         let rx_sock = create_udp_sock(interface_name, AddressFamily::Inet6, SockDirection::RX)?;
         let sock_addr = &SockaddrIn6::from(SocketAddrV6::new(
             Ipv6Addr::new(
