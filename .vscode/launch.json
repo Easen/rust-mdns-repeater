@@ -6,7 +6,7 @@
             "request": "launch",
             "name": "Cargo launch",
             "env": {
-                "RUST_LOG": "trace"
+                "RUST_LOG": "debug"
             },
             "cargo": {
                 "args": [
@@ -18,6 +18,7 @@
                 }
             },
             "args": [
+                "--disable-ipv4",
                 "--interface",
                 "eth0",
                 "--interface",
@@ -25,7 +26,7 @@
                 "--additional-subnet",
                 "192.168.10.0/24",
                 "--ignore-question-subnet",
-                "10.1.10.0/24"
+                "10.1.100.0/24"
             ]
         }
     ]
