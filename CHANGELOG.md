@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.4.0...v0.5.0) (2024-02-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* cli args ([#13](https://github.com/Easen/rust-mdns-repeater/issues/13))
+
+### Bug Fixes
+
+* cli args ([#13](https://github.com/Easen/rust-mdns-repeater/issues/13)) ([d7ef09a](https://github.com/Easen/rust-mdns-repeater/commit/d7ef09a446358cd6b1dc68046ed7e230c502b93f))
+
+
+### Miscellaneous Chores
+
+* release 0.5.0 ([b7020ca](https://github.com/Easen/rust-mdns-repeater/commit/b7020cadafbd3d1f9780ecf69761237a1790a34e))
+
 ## [0.4.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.3.2...v0.4.0) (2024-02-25)
 
 

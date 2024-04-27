@@ -23,10 +23,12 @@
                 "eth0",
                 "--interface",
                 "eth0.20",
+                "--interface",
+                "eth0.30",
                 "--additional-subnet",
                 "192.168.10.0/24",
                 "--ignore-question-subnet",
-                "10.1.100.0/24"
+                "10.1.30.0/24"
             ]
         }
     ]
