@@ -6,7 +6,7 @@
             "request": "launch",
             "name": "Cargo launch",
             "env": {
-                "RUST_LOG": "debug"
+                "RUST_LOG": "trace"
             },
             "cargo": {
                 "args": [

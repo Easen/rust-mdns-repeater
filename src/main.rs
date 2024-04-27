@@ -38,7 +38,7 @@ struct Args {
     
     /// Log errors instead of exiting when an errors occurs during forwarding
     #[arg(long)]
-    error_instead_of_exit: bool
+    error_instead_of_exit: bool,
 
     #[arg(long, default_value_t = false)]
     disable_ipv4: bool,
