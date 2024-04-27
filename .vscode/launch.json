@@ -18,6 +18,7 @@
                 }
             },
             "args": [
+                "--disable-ipv4",
                 "--interface",
                 "eth0",
                 "--interface",
