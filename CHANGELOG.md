@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.6.0...v0.7.0) (2024-04-27)
+
+
+### Features
+
+* ipv6 support ([#15](https://github.com/Easen/rust-mdns-repeater/issues/15)) ([45eb17a](https://github.com/Easen/rust-mdns-repeater/commit/45eb17a037e2566bf68ef23f9185da985a6129ac))
+
 ## [0.6.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.5.0...v0.6.0) (2024-04-27)
 
 
