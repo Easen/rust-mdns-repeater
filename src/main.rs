@@ -30,6 +30,10 @@ struct Args {
     /// Ignore mDNS question/queries from these interfaces
     #[arg(long)]
     ignore_question_subnet: Vec<String>,
+
+    /// Log errors instead of exiting when an errors occurs during forwarding
+    #[arg(long)]
+    error_instead_of_exit: bool
 }
 
 fn main() -> Result<()> {
@@ -191,7 +195,11 @@ fn main() -> Result<()> {
                 .for_each(|interface| {
                     match sendto(interface.tx_fd().as_raw_fd(), data, &dst, MsgFlags::empty()) {
                         Err(err) => {
-                            error!("Unable to forward mDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err)
+                            let error_message = format!("Unable to forward mDNS packets from {:?} to {:?} due to error - {:?}",  addr, interface.name(), err);
+                            if !args.error_instead_of_exit {
+                                panic!("{}", error_message);
+                            }
+                            error!("{}", error_message);
                         }
                         Ok(_) => info!(
                             "Forwarded mDNS packets ({} bytes) from {:?} to {:?} ",
