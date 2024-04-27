@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.5.0...v0.6.0) (2024-04-27)
+
+
+### Features
+
+* exit on error ([#16](https://github.com/Easen/rust-mdns-repeater/issues/16)) ([9e2e9e1](https://github.com/Easen/rust-mdns-repeater/commit/9e2e9e19973d213ab27978c6db0482416c1f8252))
+
 ## [0.5.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.4.0...v0.5.0) (2024-02-25)
 
 
