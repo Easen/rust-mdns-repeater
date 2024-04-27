@@ -11,9 +11,13 @@ use std::error::Error;
 use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
+use mimalloc::MiMalloc;
 
 mod interface;
 use interface::{Interface, InterfaceV4, InterfaceV6, IPV4_MDNS_ADDR, IPV6_MDNS_ADDR};
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 use crate::interface::MDNS_PORT;
 
