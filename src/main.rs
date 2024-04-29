@@ -11,6 +11,8 @@ use std::error::Error;
 use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
+use std::panic;
+use std::process;
 
 mod interface;
 use interface::{Interface, InterfaceV4, InterfaceV6, IPV4_MDNS_ADDR, IPV6_MDNS_ADDR};
@@ -48,6 +50,12 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
+
     let env = Env::default().filter_or("RUST_LOG", "info");
     env_logger::init_from_env(env);
 
