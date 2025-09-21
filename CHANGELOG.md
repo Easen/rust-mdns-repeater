@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.7.1...v1.0.0) (2025-09-21)
+
+
+### Bug Fixes
+
+* added readme, license and a info log to output the version ([#24](https://github.com/Easen/rust-mdns-repeater/issues/24)) ([0186b01](https://github.com/Easen/rust-mdns-repeater/commit/0186b01e3368b3d9dd3f914625ec8d89ed032a62))
+* upgrade versions ([#22](https://github.com/Easen/rust-mdns-repeater/issues/22)) ([1344bf0](https://github.com/Easen/rust-mdns-repeater/commit/1344bf0f1c5c3cbb2e639b6296e608c068d14617))
+
+
+### Miscellaneous Chores
+
+* release 1.0.0 ([577c78c](https://github.com/Easen/rust-mdns-repeater/commit/577c78c5a11b0199d585e5b86e845d060b7de53e))
+
 ## [0.7.1](https://github.com/Easen/rust-mdns-repeater/compare/v0.7.0...v0.7.1) (2024-04-29)
 
 
