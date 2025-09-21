@@ -37,7 +37,7 @@ struct Args {
     /// Ignore mDNS question/queries from these IPv4/IPv6 Subnets
     #[arg(long)]
     ignore_question_subnet: Vec<String>,
-    
+
     /// Log errors instead of exiting when an errors occurs during forwarding
     #[arg(long)]
     error_instead_of_exit: bool,
@@ -285,7 +285,6 @@ fn main() -> Result<()> {
                     let dst: &dyn SockaddrLike = match interface {
                         Interface::V4(_) => &ipv4_dst,
                         Interface::V6(_) => &ipv6_dst,
-    
                     };
                     match sendto(interface.tx_fd().as_raw_fd(), data, dst, MsgFlags::empty()) {
                         Err(err) => {
