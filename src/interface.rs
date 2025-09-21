@@ -141,9 +141,9 @@ fn create_udp_sock(
     };
     setsockopt(&sock, ReuseAddr, &ON)?;
 
-    let flags = fcntl(sock.as_raw_fd(), FcntlArg::F_GETFD)?;
+    let flags = fcntl(&sock, FcntlArg::F_GETFD)?;
     fcntl(
-        sock.as_raw_fd(),
+        &sock,
         FcntlArg::F_SETFL(OFlag::from_bits_retain(flags | O_NONBLOCK)),
     )?;
 
