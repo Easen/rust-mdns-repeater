@@ -1,4 +1,4 @@
-FROM rust:1.76 AS builder
+FROM rust:1.89 AS builder
 ARG TARGETPLATFORM
 ARG TARGETARCH
 RUN case "$TARGETPLATFORM" in \
@@ -13,7 +13,7 @@ COPY . .
 RUN cargo build --target $(cat /$TARGETARCH.txt) --release --bins
 RUN mv /app/target/$(cat /$TARGETARCH.txt)/release/rust-mdns-repeater /app/rust-mdns-repeater
 
-FROM alpine:latest as release
+FROM alpine:latest AS release
 WORKDIR /app
 COPY --from=builder /app/rust-mdns-repeater /app/rust-mdns-repeater
 ENTRYPOINT [ "/app/rust-mdns-repeater" ]
