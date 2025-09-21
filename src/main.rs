@@ -61,6 +61,12 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
 
+    info!(
+        "starting {} v{}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+
     if args.interface.len() < 2 {
         panic!("At least 2 interfaces are required");
     }
