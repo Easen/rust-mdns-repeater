@@ -4,6 +4,7 @@ use env_logger::Env;
 use ipnet::IpNet;
 use log::Level::Trace;
 use log::{debug, error, info, log_enabled, trace};
+use mimalloc::MiMalloc;
 use nix::sys::epoll::*;
 use nix::sys::socket::*;
 use std::collections::HashMap;
@@ -11,7 +12,8 @@ use std::error::Error;
 use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
-use mimalloc::MiMalloc;
+use std::panic;
+use std::process;
 
 mod interface;
 use interface::{Interface, InterfaceV4, InterfaceV6, IPV4_MDNS_ADDR, IPV6_MDNS_ADDR};
@@ -39,7 +41,7 @@ struct Args {
     /// Ignore mDNS question/queries from these IPv4/IPv6 Subnets
     #[arg(long)]
     ignore_question_subnet: Vec<String>,
-    
+
     /// Log errors instead of exiting when an errors occurs during forwarding
     #[arg(long)]
     error_instead_of_exit: bool,
@@ -52,10 +54,22 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
+
     let env = Env::default().filter_or("RUST_LOG", "info");
     env_logger::init_from_env(env);
 
     let args = Args::parse();
+
+    info!(
+        "starting {} v{}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
 
     if args.interface.len() < 2 {
         panic!("At least 2 interfaces are required");
@@ -281,7 +295,6 @@ fn main() -> Result<()> {
                     let dst: &dyn SockaddrLike = match interface {
                         Interface::V4(_) => &ipv4_dst,
                         Interface::V6(_) => &ipv6_dst,
-    
                     };
                     match sendto(interface.tx_fd().as_raw_fd(), data, dst, MsgFlags::empty()) {
                         Err(err) => {
