@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Easen/rust-mdns-repeater/compare/v1.0.0...v1.1.0) (2025-11-09)
+
+
+### Features
+
+* use scratch base image & mimalloc ([#19](https://github.com/Easen/rust-mdns-repeater/issues/19)) ([1f46628](https://github.com/Easen/rust-mdns-repeater/commit/1f46628191c8bbc1f79f75bb5ec28f69e1d23707))
+
 ## [1.0.0](https://github.com/Easen/rust-mdns-repeater/compare/v0.7.1...v1.0.0) (2025-09-21)
 
 
