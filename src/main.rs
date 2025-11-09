@@ -4,6 +4,7 @@ use env_logger::Env;
 use ipnet::IpNet;
 use log::Level::Trace;
 use log::{debug, error, info, log_enabled, trace};
+use mimalloc::MiMalloc;
 use nix::sys::epoll::*;
 use nix::sys::socket::*;
 use std::collections::HashMap;
@@ -16,6 +17,9 @@ use std::process;
 
 mod interface;
 use interface::{Interface, InterfaceV4, InterfaceV6, IPV4_MDNS_ADDR, IPV6_MDNS_ADDR};
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 use crate::interface::MDNS_PORT;
 
