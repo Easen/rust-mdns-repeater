@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.0...v1.1.1) (2026-01-31)
+
+
+### Bug Fixes
+
+* O_NONBLOCK belongs to file status flags ([#25](https://github.com/Easen/rust-mdns-repeater/issues/25)) ([994f9d3](https://github.com/Easen/rust-mdns-repeater/commit/994f9d348b3c956d433e6951906633cdfd20c81f))
+
 ## [1.1.0](https://github.com/Easen/rust-mdns-repeater/compare/v1.0.0...v1.1.0) (2025-11-09)
 
 
