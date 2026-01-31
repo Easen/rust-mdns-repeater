@@ -141,10 +141,10 @@ fn create_udp_sock(
     };
     setsockopt(&sock, ReuseAddr, &ON)?;
 
-    let flags = fcntl(&sock, FcntlArg::F_GETFD)?;
+    let flags = fcntl(&sock, FcntlArg::F_GETFL)?; // file status flags
     fcntl(
         &sock,
-        FcntlArg::F_SETFL(OFlag::from_bits_retain(flags | O_NONBLOCK)),
+        FcntlArg::F_SETFL(OFlag::from_bits_retain(flags) | OFlag::O_NONBLOCK),
     )?;
 
     Ok(sock)
