@@ -113,7 +113,7 @@ fn main() -> Result<()> {
                     return interface;
                 }
                 Err(err) => panic!(
-                    "Error occurred while establishing interface {:?} - {:?}",
+                    "Error occurred while establishing IPv4 interface {:?} - {:?}",
                     interface_name,
                     err.to_string()
                 ),
@@ -138,7 +138,7 @@ fn main() -> Result<()> {
                     return interface;
                 }
                 Err(err) => panic!(
-                    "Error occurred while establishing interface {:?} - {:?}",
+                    "Error occurred while establishing IPv6 interface {:?} - {:?}",
                     interface_name,
                     err.to_string()
                 ),

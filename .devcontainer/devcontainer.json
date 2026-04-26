@@ -1,0 +1,27 @@
+{
+	"name": "Rust",
+	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
+
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		 "ghcr.io/devcontainers/features/git:1": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"ms-vscode.vscode-json",
+				"tamasfe.even-better-toml",
+				"fill-labs.dependi"
+			]
+		}
+	},
+	"privileged": true,
+	"runArgs": ["--network", "host"],
+	"capAdd": ["NET_RAW", "NET_ADMIN"],	
+	"postCreateCommand": "cargo build",
+	"mounts": [
+		"source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.ssh/id_rsa,target=/home/vscode/.ssh/id_rsa,type=bind,consistency=cached"
+	]
+}
