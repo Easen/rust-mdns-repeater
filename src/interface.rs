@@ -1,26 +1,30 @@
+use getifaddrs::{getifaddrs, Address};
 use ipnet::{Ipv4Net, Ipv6Net};
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
-use nix::libc::{c_char, if_nametoindex, ifreq, O_NONBLOCK, SIOCGIFADDR, SIOCGIFNETMASK};
+use nix::libc::{if_nametoindex, ifreq, O_NONBLOCK};
+#[cfg(target_os = "linux")]
+use nix::sys::socket::sockopt::BindToDevice;
+#[cfg(target_os = "linux")]
+use nix::sys::socket::sockopt::Ipv4Ttl;
 use nix::sys::socket::sockopt::{
-    BindToDevice, IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv4Ttl, Ipv6AddMembership,
+    IpAddMembership, IpMulticastLoop, Ipv4PacketInfo, Ipv6AddMembership,
     Ipv6RecvPacketInfo, Ipv6Ttl, Ipv6V6Only, ReuseAddr,
 };
 use nix::sys::socket::*;
 use std::error::Error;
+#[cfg(target_os = "linux")]
 use std::ffi::OsString;
 use std::io;
 use std::mem::{self};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::raw::c_char;
 
 pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 pub const MDNS_PORT: u16 = 5353;
 pub const IPV4_MDNS_ADDR: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
 pub const IPV6_MDNS_ADDR: Ipv6Addr = Ipv6Addr::new(0xff02, 0, 0, 0, 0, 0, 0, 0x00fb); // ff02::fb
-
-nix::ioctl_read_bad!(siocgifaddr, SIOCGIFADDR, ifreq);
-nix::ioctl_read_bad!(siocgifnetmask, SIOCGIFNETMASK, ifreq);
 
 fn ifreq_for(name: &str) -> ifreq {
     let mut req: ifreq = unsafe { mem::zeroed() };
@@ -30,32 +34,25 @@ fn ifreq_for(name: &str) -> ifreq {
     req
 }
 
-fn sockaddr_to_ipv4addr(addr: sockaddr) -> Result<Ipv4Addr> {
-    Ok(Ipv4Addr::new(
-        addr.sa_data[2].try_into()?,
-        addr.sa_data[3].try_into()?,
-        addr.sa_data[4].try_into()?,
-        addr.sa_data[5].try_into()?,
-    ))
-}
-
-fn get_network_for_interface(interface_name: &String, sock_fd: &OwnedFd) -> Result<Ipv4Net> {
-    let mut req: ifreq = ifreq_for(&interface_name);
-    let addr: Ipv4Addr;
-    unsafe {
-        // get the ipv4 address
-        siocgifaddr(sock_fd.as_raw_fd(), &mut req)?;
-        addr = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
-    };
-
-    let mask: Ipv4Addr;
-    unsafe {
-        // get the ipv4 mask
-        siocgifnetmask(sock_fd.as_raw_fd(), &mut req)?;
-        mask = sockaddr_to_ipv4addr(req.ifr_ifru.ifru_addr)?;
-    };
-
-    Ok(Ipv4Net::with_netmask(addr, mask)?)
+fn get_network_for_interface(interface_name: &String) -> Result<Ipv4Net> {
+    let ifaddrs = getifaddrs()?;
+    for ifaddr in ifaddrs {
+        if ifaddr.name == *interface_name {
+            match ifaddr.address {
+                Address::V4(v4addr) => {
+                    let addr = v4addr.address;
+                    let mask = v4addr.netmask.ok_or("No netmask for interface")?;
+                    return Ok(Ipv4Net::with_netmask(addr, mask)?);
+                }
+                _ => continue,
+            }
+        }
+    }
+    Err(format!(
+        "Interface {} not found or has no IPv4 address",
+        interface_name
+    )
+    .into())
 }
 
 enum SockDirection {
@@ -84,6 +81,7 @@ fn create_udp_sock(
             match sock_direction {
                 SockDirection::RX => {
                     setsockopt(&sock, Ipv4PacketInfo, &ON)?;
+                    #[cfg(target_os = "linux")]
                     setsockopt(&sock, BindToDevice, &OsString::from(&interface_name))?;
                 }
                 SockDirection::TX => unsafe {
@@ -108,6 +106,7 @@ fn create_udp_sock(
             match sock_direction {
                 SockDirection::RX => {
                     setsockopt(&sock, Ipv6RecvPacketInfo, &ON)?;
+                    #[cfg(target_os = "linux")]
                     setsockopt(&sock, BindToDevice, &OsString::from(&interface_name))?;
                 }
                 SockDirection::TX => unsafe {
@@ -216,7 +215,7 @@ impl Interface {
 impl InterfaceV4 {
     pub fn new(interface_name: &String) -> Result<Self> {
         let tx_sock = create_udp_sock(interface_name, AddressFamily::Inet, SockDirection::TX)?;
-        let network = get_network_for_interface(interface_name, &tx_sock)?;
+        let network = get_network_for_interface(interface_name)?;
         let sock_addr = &SockaddrIn::from(SocketAddrV4::new(network.addr(), MDNS_PORT));
         bind(tx_sock.as_raw_fd(), sock_addr)?;
         setsockopt(
@@ -224,6 +223,7 @@ impl InterfaceV4 {
             IpAddMembership,
             &IpMembershipRequest::new(IPV4_MDNS_ADDR, Some(network.addr())),
         )?;
+        #[cfg(target_os = "linux")]
         setsockopt(&tx_sock, Ipv4Ttl, &255)?;
 
         let rx_sock = create_udp_sock(interface_name, AddressFamily::Inet, SockDirection::RX)?;

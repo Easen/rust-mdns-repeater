@@ -5,8 +5,8 @@ use ipnet::IpNet;
 use log::Level::Trace;
 use log::{debug, error, info, log_enabled, trace};
 use mimalloc::MiMalloc;
-use nix::sys::epoll::*;
 use nix::sys::socket::*;
+use polling::{Event, Events, Poller};
 use std::collections::HashMap;
 use std::error::Error;
 use std::net::{IpAddr, SocketAddrV4, SocketAddrV6};
@@ -14,6 +14,7 @@ use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::panic;
 use std::process;
+use std::time::Duration;
 
 mod interface;
 use interface::{Interface, InterfaceV4, InterfaceV6, IPV4_MDNS_ADDR, IPV6_MDNS_ADDR};
@@ -25,7 +26,7 @@ use crate::interface::MDNS_PORT;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
-const EPOLL_TIMEOUT: u16 = 100;
+const EPOLL_TIMEOUT: u64 = 100;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -113,7 +114,7 @@ fn main() -> Result<()> {
                     return interface;
                 }
                 Err(err) => panic!(
-                    "Error occurred while establishing interface {:?} - {:?}",
+                    "Error occurred while establishing IPv4 interface {:?} - {:?}",
                     interface_name,
                     err.to_string()
                 ),
@@ -138,7 +139,7 @@ fn main() -> Result<()> {
                     return interface;
                 }
                 Err(err) => panic!(
-                    "Error occurred while establishing interface {:?} - {:?}",
+                    "Error occurred while establishing IPv6 interface {:?} - {:?}",
                     interface_name,
                     err.to_string()
                 ),
@@ -147,16 +148,18 @@ fn main() -> Result<()> {
         interfaces.append(&mut ipv6_interfaces);
     }
 
-    debug!("Setting up the epoll");
-    let epoll = Epoll::new(EpollCreateFlags::empty()).unwrap();
-    let mut epoll_events = vec![EpollEvent::empty(); 16];
+    debug!("Setting up the poller");
+    let poller = Poller::new().unwrap();
+    let mut events = Events::new();
 
     info!("Setting up server sockets");
     let mut rx_socks = HashMap::new();
-    interfaces.iter().for_each(|interface| {
+    interfaces.iter().for_each(|interface: &Interface| {
         let rx_fd = interface.rx_fd();
-        let event = EpollEvent::new(EpollFlags::EPOLLIN, rx_fd.as_raw_fd() as u64);
-        epoll.add(&rx_fd, event).unwrap();
+        let key = rx_fd.as_raw_fd() as usize;
+        unsafe {
+            poller.add(rx_fd.as_raw_fd(), Event::readable(key)).unwrap();
+        }
         rx_socks.insert(rx_fd.as_raw_fd(), interface);
     });
 
@@ -165,19 +168,20 @@ fn main() -> Result<()> {
         SockaddrIn6::from(SocketAddrV6::new(IPV6_MDNS_ADDR, MDNS_PORT, 0, 0));
 
     loop {
-        let result = epoll.wait(&mut epoll_events, EPOLL_TIMEOUT);
+        events.clear();
+        let result = poller.wait(&mut events, Some(Duration::from_millis(EPOLL_TIMEOUT)));
         if result.is_err() {
-            error!("Error from epoll {:?}", result.err());
+            error!("Error from poller {:?}", result.err());
             continue;
         }
-        let num = result.unwrap();
+        let num = events.len();
         if num == 0 {
             continue;
         }
         trace!("Received {} events", num);
-        'events: for i in 0..num {
+        'events: for event in events.iter() {
             let mut buf: [u8; 4096] = [0; 4096];
-            let sockfd = epoll_events[i].data() as RawFd;
+            let sockfd = event.key as RawFd;
             // find the interface for the sockfd
             let src_interface = rx_socks.get(&sockfd);
 

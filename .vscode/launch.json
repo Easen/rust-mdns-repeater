@@ -18,17 +18,13 @@
                 }
             },
             "args": [
-                "--disable-ipv4",
+                "--disable-ipv6",
                 "--interface",
-                "eth0",
+                "eth0" ,
                 "--interface",
-                "eth0.20",
+                "eth1",
                 "--interface",
-                "eth0.30",
-                "--additional-subnet",
-                "192.168.10.0/24",
-                "--ignore-question-subnet",
-                "10.1.30.0/24"
+                "br-46fb054cb02b",
             ]
         }
     ]
