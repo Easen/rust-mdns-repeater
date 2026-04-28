@@ -1,4 +1,4 @@
-name: ci
+name: Build
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
-        
+
   docker:
     runs-on: ubuntu-latest
     steps:
