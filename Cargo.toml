@@ -10,6 +10,7 @@ mimalloc = { version = "0.1.48" }
 clap = { version = "4.5.48", features = ["derive"] }
 dns-parser = "0.8.0"
 env_logger = "0.11.8"
+getifaddrs = "0.6.1"
 ipnet = "2.11.0"
 log = "0.4.20"
 nix = { version = "0.30.1", features = [
@@ -19,3 +20,4 @@ nix = { version = "0.30.1", features = [
   "ioctl",
   "fs",
 ] }
+polling = "3.7.3"
