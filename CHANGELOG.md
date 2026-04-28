@@ -1,3 +1,9 @@
+## [1.1.5](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.4...v1.1.5) (2026-04-28)
+
+### Build
+
+* issue docker on release ([6691e41](https://github.com/Easen/rust-mdns-repeater/commit/6691e41e3dd4906e9e2616a3aaf3e27ace164dbf))
+
 ## [1.1.4](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.3...v1.1.4) (2026-04-28)
 
 ### Build
