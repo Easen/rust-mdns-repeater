@@ -1,3 +1,15 @@
+## [1.1.2](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.1...v1.1.2) (2026-04-28)
+
+### Refactors
+
+* rename ci --> build ([7154c0f](https://github.com/Easen/rust-mdns-repeater/commit/7154c0f855926d579b65f8c871340ca20aab666d))
+
+### Build
+
+* migrate to semantic-release ([6035a34](https://github.com/Easen/rust-mdns-repeater/commit/6035a34696ad45aca7db35442275a89b82217c57))
+* **release:** missing packages ([8eb8134](https://github.com/Easen/rust-mdns-repeater/commit/8eb8134d8ab6af7c0c8e33e7094cc46ddd987918))
+* use write package token ([3a1c045](https://github.com/Easen/rust-mdns-repeater/commit/3a1c045e53a0aaa119095300df3c187a86efbe59))
+
 # Changelog
 
 ## [1.1.1](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.0...v1.1.1) (2026-01-31)
