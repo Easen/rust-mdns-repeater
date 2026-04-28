@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.3...v1.1.4) (2026-04-28)
+
+### Build
+
+* release after a build (with correct git token) ([4ee20f6](https://github.com/Easen/rust-mdns-repeater/commit/4ee20f641384ffb6dad99216563c36706179927d))
+* release after build ([8456d80](https://github.com/Easen/rust-mdns-repeater/commit/8456d804b54ea3bd4809d757c153a1b007ad294e))
+
 ## [1.1.3](https://github.com/Easen/rust-mdns-repeater/compare/v1.1.2...v1.1.3) (2026-04-28)
 
 ### Build
