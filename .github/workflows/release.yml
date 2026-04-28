@@ -20,7 +20,13 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 'lts/*'
-          
-      - run: npx semantic-release
+
+      - run: |
+          npx --package semantic-release \
+              --package @semantic-release/exec \
+              --package @semantic-release/changelog \
+              --package conventional-changelog-conventionalcommits \
+              --package @semantic-release/git \
+              semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
